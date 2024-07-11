@@ -13,7 +13,7 @@ module SPI (
     output logic ss_n_out
 );
 
-typedef enum { Idle , ss_delay , cpha_delay , p0 , p1 } state;
+typedef enum { Idle , ss_setup , cpha_delay , ss_hold , ss_turn , p0 , p1 } state;
 state stt_reg, stt_next;
 logic [15:0] c_reg, c_next;
 logic [7:0] si_reg, si_next;
@@ -59,34 +59,22 @@ always_comb begin
             if (start) begin
                 c_next = 0;
                 n_next = 0;
-                stt_next = ss_delay;    
+                stt_next = ss_setup;    
             end
         end
 
-        ss_delay: begin
-            if(n_reg == 0) begin
-                if (c_reg == ss_s_cycle) begin
-                    if (start) begin
+        ss_setup: begin
+            if (c_reg == ss_s_cycle) begin
+                if (start) begin
                     so_next = Din;
                     ss_n_out_i = 1'b0;
+                    c_next = 0;
                     if (cpha) stt_next = p0;
                     else stt_next = cpha_delay;
-                    end
                 end
-                else c_next = c_next + 1;
-            if(n_reg == 7) begin
-                if (spi_done_tick == 0) begin
-                   if (c_reg == ss_h_cycle) begin
-                        spi_done_tick_i = 1'b1;
-                        c_next = 0;
-                   end
-                   else c_next = c_next + 1;      
-                end 
-                else if (c_reg == ss_t_cycle) stt_next = idle;
-                else c_next = c_next + 1;
-            end            
             end
-        end
+            else c_next = c_next + 1;
+        end            
         
         cpha_delay: begin
             if (c_reg == dvsr) begin
@@ -97,7 +85,21 @@ always_comb begin
                 c_next = c_next + 1;
             end
         end
+
+        ss_hold: begin
+            if (c_reg == ss_h_cycle) begin
+                    spi_done_tick_i = 1'b1;
+                    c_next = 0;
+                    stt_next = ss_turn;
+                end
+            else c_next = c_next + 1;        
+        end
        
+        ss_turn: begin
+            if (c_reg == ss_t_cycle) stt_next = idle;
+            else c_next = c_next + 1;
+        end 
+
         p0: begin
             if (c_reg == dvsr) begin
                 si_next = {miso, si_next[7:1]}; 
@@ -112,11 +114,12 @@ always_comb begin
         p1: begin
             if(c_reg == dvsr) begin
                 if (n_reg == 7) begin
-                    stt_next = ss_delay;
+                    stt_next = ss_hold;
                 end    
                 else begin
                     so_next = {1'b0, so_next[7:1]};
                     c_next = 0;
+                    n_next = n_next + 1;
                     stt_next = p0;
                 end
             end

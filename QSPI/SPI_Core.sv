@@ -26,7 +26,7 @@ logic [S-1:0] ss_n_reg;
 logic [7:0] spi_out;
 logic spi_ready, cpol, cpha;
 logic [15:0] dvsr;
-logic ss_en;
+logic s_en;
 
 SPI SPI_Unit(
     .clk(clk), 
@@ -45,13 +45,13 @@ SPI SPI_Unit(
     .mosi(spi_mosi),
     .spi_done_tick(),
     .ready(spi_ready),
-    .ss_n_out(ss_en)
+    .ss_n_out(s_en)
 );
 
 always_ff @( posedge clk, posedge reset ) begin
     if (reset) begin
-        ctrl_reg <= 17'h0_0200;//Hexadecimal equivalent of 
-        ss_n_reg <= {S{1'b1}};//Sets all indices' values to 1.
+        ctrl_reg <= 17'h200;//Hexadecimal equivalent of 512.
+        ss_n_reg <= {S{1'b1}};//Repeats 1 "S" times.
     end
     else begin
         if (wr_ctrl)
@@ -70,7 +70,7 @@ assign dvsr = ctrl_reg[15:0];
 assign cpol = ctrl_reg[16];
 assign cpha = ctrl_reg[17];
 //Using buffer to write Slave no.
-assign spi_ss_n = ss_n_reg;
+assign spi_ss_n = ss_n_reg || {S{ss_en}};//When ss_en goes to 0. then we just do bitwise OR and see which line/path is equal to 0.
 //The read data register.
 assign rd_data = {23'b0, spi_ready, spi_out};
 endmodule
