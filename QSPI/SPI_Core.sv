@@ -1,11 +1,14 @@
 //When the processor reads data, the first 8 bits are data bits. and the 9th one is ready status signal.
 //When the processor writes data, the first S-1 bits are the slave no. , next 8 bits are data bits. then the next 18 bits : first 16 is clk_divisor, 17th is cpol, 18th is cpha.
 module SPI_Core 
-    #(parameter S = 2;)//No of Slaves.
+    #(parameter S = 2;)//No of Slaves. 
     (
     input logic clk,
     input logic rst,
 
+    input logic [15:0] t_hold,
+    input logic [15:0] t_turn,
+    input logic [15:0] t_setup,
     input logic write,//Write instruction.
     input logic [1:0] instr,//I use this to first write the slave no. and the data bits simultaneously, then I write the control bits(dvsr, cpol, cpha)
     input logic [31:0] wr_data,//The write data register, described above.
@@ -14,7 +17,7 @@ module SPI_Core
     output logic spi_sclk,//This is used to synchronize with other chips(slaves).
     output logic spi_mosi,
     input logic spi_miso,
-    output logic [S-1:0] spi_ss_n//The slave no.(A Demux can be used to drive the slave).
+    output logic [S-1:0] spi_ss_n//The slave Selector.(01, 10). 11 being the null value. (Slaves are active-low.)
 );
 
 logic wr_en, wr_ss, wr_spi, wr_ctrl;
@@ -23,6 +26,7 @@ logic [S-1:0] ss_n_reg;
 logic [7:0] spi_out;
 logic spi_ready, cpol, cpha;
 logic [15:0] dvsr;
+logic ss_en;
 
 SPI SPI_Unit(
     .clk(clk), 
@@ -32,18 +36,22 @@ SPI SPI_Unit(
     .start(wr_spi),
     .cpol(cpol),
     .cpha(cpha),
+    .ss_h_cycle(t_hold),
+    .ss_t_cycle(t_turn),
+    .ss_s_cycle(t_setup),
     .dout(spi_out),
     .sclk(spi_sclk),
     .miso(spi_miso),
     .mosi(spi_mosi),
     .spi_done_tick(),
-    .ready(spi_ready)
+    .ready(spi_ready),
+    .ss_n_out(ss_en)
 );
 
 always_ff @( posedge clk, posedge reset ) begin
     if (reset) begin
-        ctrl_reg <= 17'h0_0200;
-        ss_n_reg <= {S{1'b1}};
+        ctrl_reg <= 17'h0_0200;//Hexadecimal equivalent of 
+        ss_n_reg <= {S{1'b1}};//Sets all indices' values to 1.
     end
     else begin
         if (wr_ctrl)
