@@ -18,8 +18,8 @@ state stt_reg, stt_next;
 logic [15:0] c_reg, c_next;
 logic [7:0] si_reg, si_next;
 logic [7:0] so_reg, so_next;
-logic [2:0] n_reg, n_next;
-logic ready_i, spi_done_tick_i, ss_n_out_i;
+logic [2:0] n_reg, n_next;//I count based on two modes, if phase is 0, then I increase at the middle of bit , else I count at the Loading of bit.
+logic ready_i, spi_done_tick_i;
 logic sclk_reg, sclk_next;
 logic pclk;
 
@@ -44,7 +44,6 @@ end
 
 always_comb begin 
     spi_done_tick_i = 1'b0;
-    ss_n_out_i = 1'b1;
     ready_i = 1'b0;
     stt_next = stt_reg;
     c_next = c_reg;
@@ -65,42 +64,15 @@ always_comb begin
 
         ss_setup: begin
             if (c_reg == ss_s_cycle) begin
-                if (start) begin
-                    so_next = Din;
-                    ss_n_out_i = 1'b0;
-                    c_next = 0;
-                    if (cpha) stt_next = p0;
-                    else stt_next = cpha_delay;
-                end
-            end
-            else c_next = c_next + 1;
-        end            
-        
-        cpha_delay: begin
-            if (c_reg == dvsr) begin
+                so_next = Din;
+                ss_n_out = 1'b0;
                 c_next = 0;
                 stt_next = p0;
             end
-            else begin
-                c_next = c_next + 1;
-            end
-        end
-
-        ss_hold: begin
-            if (c_reg == ss_h_cycle) begin
-                    spi_done_tick_i = 1'b1;
-                    c_next = 0;
-                    stt_next = ss_turn;
-                end
-            else c_next = c_next + 1;        
-        end
-       
-        ss_turn: begin
-            if (c_reg == ss_t_cycle) stt_next = idle;
             else c_next = c_next + 1;
-        end 
+        end            
 
-        p0: begin
+        p0: begin //s_clk 0-to-1
             if (c_reg == dvsr) begin
                 si_next = {miso, si_next[7:1]}; 
                 c_next = 0;
@@ -111,9 +83,9 @@ always_comb begin
             end
         end
         
-        p1: begin
+        p1: begin //s_clk 1-to-0
             if(c_reg == dvsr) begin
-                if (n_reg == 7) begin
+                if (n_reg == 8) begin
                     stt_next = ss_hold;
                 end    
                 else begin
@@ -124,12 +96,26 @@ always_comb begin
                 end
             end
         end
+        
+        ss_hold: begin
+            if (c_reg == ss_h_cycle) begin
+                    spi_done_tick_i = 1'b1;
+                    c_next = 0;
+                    stt_next = ss_turn;
+                end
+            else c_next = c_next + 1;        
+        end
+       
+        ss_turn: begin
+            ss_n_out = 1'b1;
+            if (c_reg == ss_t_cycle) stt_next = idle;
+            else c_next = c_next + 1;
+        end         
     endcase
 end
 
 assign spi_done_tick = spi_done_tick_i;
 assign ready = ready_i;
-assign ss_n_out = ss_n_out_i;
 
 assign pclk = (stt_next == p1 && ~cpha) || (stt_next == p0 && cpha); //I assume here that cpol is 0 by default.
 //So when state is p1, then at cpha = 0, we get 1, else 0, and the reverse for state = p0. The reason why next stt's are used is to avoid delays.
