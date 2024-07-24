@@ -13,7 +13,7 @@ int main() {
 
     initialize_table();  // Initialize the table with (m, alpha) pairs
 
-    Register Info[T];
+    Register Info[T + Q];
     Register QRAM[Q];
     initializeRegisters(Info, T);
     initializeRegisters(QRAM, Q);
@@ -55,26 +55,44 @@ int main() {
 
     Accumulate(CheckSum);  // Accumulate the CheckSum values
 
-    // Copy the CheckSum to the first row of PRAM
+    // Copy the CheckSum to the first row of QRAM
     for (int i = 0; i < L; i++) {
-        QRAM[0].data[i] = CheckSum[i];
+        QRAM[0].data[i] = (QRAM[0].data[i] + CheckSum[i]) % 2;
     }
 
     ParityCalculator(QRAM);  // Calculate parity bits
 
-    free_table();  // Free allocated memory
-
-    printf("The Parity Bits are:\n");
-    for (int i = 0; i < NUM_ROWS; i++) {
+    int tempParSeq[Q*360];
+    for (int i = 0; i < Q ; i++) {
         for (int j = 0; j < L; j++) {
-            printf("%d", QRAM[i].data[j]);
+            tempParSeq[Pbits] = QRAM[i].data[j];
             Pbits += 1;
         }
-        printf("\n");    
     }
-    printf("\n");
+
+    Pbits = 0;
+    for (int i = T; i < T + Q; i++) {
+        for (int j = 0; j < L; j++) {
+            Info[i].data[j] = tempParSeq[Pbits];
+            Pbits += 1;
+        }   
+    }
+    
+
+    free_table();  // Free allocated memory
+
     printf("The number of parity bits: %d", Pbits);
+
+    printf("\n");
+    printf("The Final Frame is:\n");
+    for (int i = 0; i < T + Q; i++) {
+        for (int j = 0; j < L; j++) {
+            printf("%d", Info[i].data[j]);
+        }
+        printf("\n");
+    }
     printf("\nThe total frame length is: %d", Pbits+(T*360));
+    
     return 0;
 }
 
